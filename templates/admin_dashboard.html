@@ -23,7 +23,11 @@
       <div>
         <div class="brand-logo d-flex align-items-center justify-content-between">
           <a href="#" class="text-nowrap logo-img">
-              <img src="{{ url_for('static', filename='images/your_uploaded_image.jpg') }}" alt="Uploaded Logo">
+               <img src="{{ url_for('static', filename='images/your_uploaded_image.jpg') }}"
+     alt="Logo"
+     style="height:80px; width:auto; object-fit:contain; display:block;">
+
+
           </a>
           <div class="close-btn d-xl-none d-block sidebartoggler cursor-pointer" id="sidebarCollapse">
             <ion-icon name="close"></ion-icon>
