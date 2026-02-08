@@ -37,8 +37,84 @@ def allowed_assignment_file(filename):
     _, ext = os.path.splitext(filename.lower())
     return ext in ALLOWED_ASSIGNMENT_EXTENSIONS
 
+def ensure_manager_schema(conn):
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS logins(
+            username TEXT,
+            password TEXT,
+            manager_id TEXT
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS manager(
+            manager_id TEXT PRIMARY KEY,
+            f_name TEXT,
+            m_name TEXT,
+            l_name TEXT,
+            position TEXT,
+            email TEXT,
+            phone_number TEXT,
+            profile_picture BLOB
+        )
+    ''')
+
+    cursor.execute("PRAGMA table_info(logins)")
+    login_cols = {row[1] for row in cursor.fetchall()}
+    if "manager_id" not in login_cols:
+        cursor.execute("ALTER TABLE logins ADD COLUMN manager_id TEXT")
+
+    cursor.execute("PRAGMA table_info(manager)")
+    manager_cols = {row[1] for row in cursor.fetchall()}
+    if "email" not in manager_cols:
+        cursor.execute("ALTER TABLE manager ADD COLUMN email TEXT")
+    if "phone_number" not in manager_cols:
+        cursor.execute("ALTER TABLE manager ADD COLUMN phone_number TEXT")
+    if "profile_picture" not in manager_cols:
+        cursor.execute("ALTER TABLE manager ADD COLUMN profile_picture BLOB")
+    if "position" not in manager_cols:
+        cursor.execute("ALTER TABLE manager ADD COLUMN position TEXT")
+
+def ensure_student_logins_schema(conn):
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS logins(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admission_no TEXT,
+            password TEXT,
+            FOREIGN KEY (admission_no) REFERENCES students (admission_no)
+        )
+    ''')
+    cursor.execute("PRAGMA table_info(logins)")
+    login_cols = {row[1] for row in cursor.fetchall()}
+    if "is_locked" not in login_cols:
+        cursor.execute("ALTER TABLE logins ADD COLUMN is_locked INTEGER DEFAULT 0")
+
+def ensure_admin_logins_schema(conn):
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS logins(
+            position TEXT,
+            password TEXT
+        )
+    ''')
+    cursor.execute("PRAGMA table_info(logins)")
+    login_cols = {row[1] for row in cursor.fetchall()}
+    if "is_locked" not in login_cols:
+        cursor.execute("ALTER TABLE logins ADD COLUMN is_locked INTEGER DEFAULT 0")
+
+def manager_signup_required():
+    with sqlite3.connect('manager.db') as conn:
+        ensure_manager_schema(conn)
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM logins')
+        count = cursor.fetchone()[0]
+    return count == 0
+
 @app.route('/', methods=['GET', 'POST'])
 def login():
+    if manager_signup_required():
+        return redirect(url_for('manager_signup'))
 
     if request.method == 'POST':
 
@@ -46,47 +122,123 @@ def login():
         password = request.form['password']
 
         with sqlite3.connect('student.db') as conn:
+            ensure_student_logins_schema(conn)
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT COUNT(*)
+                SELECT password, COALESCE(is_locked, 0)
                 FROM logins
-                WHERE admission_no = ? AND password = ?
-            ''', (admission_no, password))
+                WHERE admission_no = ?
+            ''', (admission_no,))
 
+            row = cursor.fetchone()
+            if row:
+                stored_password, is_locked = row[0], row[1]
+                if is_locked == 1:
+                    return render_template('login.html', error="Your portal is locked. Please contact administration.")
+                if stored_password == password:
+                    session['admission_no'] = admission_no
+                    return redirect(url_for('home'))
+
+        with sqlite3.connect('manager.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+            SELECT COUNT(*)
+            FROM logins
+            WHERE username = ? AND password = ?
+
+            ''', (admission_no, password))
             count = cursor.fetchone()[0]
-            if count > 0:  # If the student exists,
-                session['admission_no'] = admission_no
-                return redirect(url_for('home'))
-            elif count < 1:
-                with sqlite3.connect('manager.db') as conn:
+            if count > 0:
+                session['username'] = admission_no
+                return redirect(url_for('add_or_remove_student'))
+            else:
+                with sqlite3.connect('admin.db') as conn:
+                    ensure_admin_logins_schema(conn)
                     cursor = conn.cursor()
                     cursor.execute('''
-                    SELECT COUNT(*)
-                    FROM logins
-                    WHERE username = ? AND password = ?
+                        SELECT password, COALESCE(is_locked, 0)
+                        FROM logins
+                        WHERE position = ?
+                    ''', (admission_no,))
+                    row = cursor.fetchone()
+                    if row:
+                        stored_password, is_locked = row[0], row[1]
+                        if is_locked == 1:
+                            return render_template('login.html', error="Your portal is locked. Please contact administration.")
+                        if stored_password == password:
+                            session['userName'] = admission_no
+                            return redirect(url_for('admin_dashboard'))
 
-                    ''', (admission_no, password))
-                    count = cursor.fetchone()[0]
-                    if count > 0:
-                        session['username'] = admission_no
-                        return redirect(url_for('add_or_remove_student'))
-                    else:
-                        with sqlite3.connect('admin.db') as conn:
-                            cursor = conn.cursor()
-                            cursor.execute('''
-                                SELECT COUNT(*)
-                                FROM logins
-                                WHERE position = ? AND password = ?
-                            ''', (admission_no, password))
-
-                            count = cursor.fetchone()[0]
-                            if count > 0:
-                                session['userName'] = admission_no
-                                return redirect(url_for('admin_dashboard'))
-
-                            else:
-                                return render_template('login.html', error="Invalid admission number or password")
+        return render_template('login.html', error="Invalid admission number or password")
     return render_template('login.html')
+
+@app.route('/manager_signup', methods=['GET', 'POST'])
+def manager_signup():
+
+    if request.method == 'GET' and not manager_signup_required():
+        return redirect(url_for('login'))
+
+    error = None
+    if request.method == 'POST':
+        username = request.form.get('username', '')
+        f_name = request.form.get('f_name', '')
+        m_name = request.form.get('m_name', '')
+        l_name = request.form.get('l_name', '')
+        position = request.form.get('position', '')
+        email = request.form.get('email', '')
+        phone_number = request.form.get('phone_number', '')
+        password = request.form.get('password', '')
+        
+        print(f"Received manager signup data: username={username}, f_name={f_name}, m_name={m_name}, l_name={l_name}, position={position}, email={email}, phone_number={phone_number}")
+
+        confirm_password = request.form.get('confirm_password', '')
+
+        if not username or not password:
+            error = "Username and password are required."
+        elif password != confirm_password:
+            error = "Passwords do not match."
+        else:
+            try:
+                with sqlite3.connect('manager.db') as conn:
+                    ensure_manager_schema(conn)
+                    cursor = conn.cursor()
+
+                    # Insert manager details
+                    cursor.execute("""
+                        INSERT INTO manager (
+                            manager_id, f_name, m_name, l_name,
+                            position, email, phone_number
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, (username, f_name, m_name, l_name, position, email, phone_number))
+
+                    # Insert login credentials
+                    cursor.execute("""
+                        INSERT INTO logins (username, password, manager_id)
+                        VALUES (?, ?, ?)
+                    """, (username, password, username))
+
+                    conn.commit()
+                    sender_email = "richardkeith233@gmail.com"
+                    sender_password = "mnoj wsox aumw tkrs"
+                    subject = "Account created successfully"
+
+                    body = f"Your password is: {password} and your username is: {username}. Please log in and change it."
+                    print(f"Sending email to {email}")
+                    send_mail1.forgot_m_pass(sender_email,sender_password, email, subject, body)
+            # Send email
+
+
+                return redirect(url_for('login'))
+
+            except sqlite3.IntegrityError:
+                # Handles duplicate manager_id / username
+                error = "A manager account already exists or this username is taken."
+
+            except Exception as e:
+                print("Database error:", e)
+                error = "An unexpected error occurred. Please try again."
+
+    return render_template('manager_signup.html', error=error)
 
 
 #====================profile
@@ -1097,7 +1249,7 @@ def submit_signup():
     recipient_email = email
     password2 = last_name
 
-    subject = "Chuka University"
+    subject = "Crimsons Schools"
     body = f"Welcome and feel at home your last name will be your default password: {password2}, Your admission number: {admission_no}"
 
     send_mail1.send_email(sender_email,recipient_email, sender_password, password2, subject, body)
@@ -1636,41 +1788,67 @@ def view_student_marks2(admission_no, enrolled_subjects=None):
 #===========================================Change Student Logins
 @app.route('/students_logins', methods=['GET', 'POST'])
 def show_students():
+    username =session.get('username')
+    profile_pic = database.get_aprofile(username)
     conn = sqlite3.connect('student.db')
+    ensure_student_logins_schema(conn)
     cursor = conn.cursor()
 
     email, name, last_name = None, None, None  # Default values
 
     # Check if it's a POST request to update a password
     if request.method == 'POST':
+        action = request.form.get('action', 'update_password')
         admission_number = request.form['admission_number']
-        new_password = request.form['new_password']
 
-        # Update the password in the logins table; insert if missing
-        cursor.execute("SELECT 1 FROM logins WHERE admission_no = ?", (admission_number,))
-        if cursor.fetchone():
-            cursor.execute("UPDATE logins SET password = ? WHERE admission_no = ?", (new_password, admission_number))
+        if action == 'toggle_lock':
+            new_state = int(request.form.get('lock_state', '0'))
+            cursor.execute("SELECT 1 FROM logins WHERE admission_no = ?", (admission_number,))
+            if cursor.fetchone():
+                cursor.execute("UPDATE logins SET is_locked = ? WHERE admission_no = ?", (new_state, admission_number))
+                sender_email = "richardkeith233@gmail.com"
+                sender_password = "mnoj wsox aumw tkrs"  # Use an App Password if 2FA is enabled
+                recipient_email = database.get_email(admission_number)
+
+                subject = "Crimsons Student Portal"
+                body = f"Hello {database.get_last_name(admission_number)},\n\nWe regret to inform you that your account has been locked by the Administration panel. Please confirm with the administration."
+
+                send_mail1.send_email(sender_email, recipient_email, sender_password, last_name, subject, body)
+
+            else:
+                cursor.execute("INSERT INTO logins (admission_no, password, is_locked) VALUES (?, ?, ?)",
+                               (admission_number, "", new_state))
+            conn.commit()
         else:
-            cursor.execute("INSERT INTO logins (admission_no, password) VALUES (?, ?)", (admission_number, new_password))
-        conn.commit()
+            new_password = request.form['new_password']
 
-        # Fetch the email, first name, and last name for the given admission number
-        cursor.execute("SELECT email, first_name, last_name FROM students WHERE admission_no = ?", (admission_number,))
-        result = cursor.fetchone()
+            # Update the password in the logins table; insert if missing
+            cursor.execute("SELECT 1 FROM logins WHERE admission_no = ?", (admission_number,))
+            if cursor.fetchone():
+                cursor.execute("UPDATE logins SET password = ? WHERE admission_no = ?", (new_password, admission_number))
+            else:
+                cursor.execute("INSERT INTO logins (admission_no, password, is_locked) VALUES (?, ?, 0)",
+                               (admission_number, new_password))
+            conn.commit()
 
-        if result:
-            email, name, last_name = result  # Unpacking the tuple
+            # Fetch the email, first name, and last name for the given admission number
+            cursor.execute("SELECT email, first_name, last_name FROM students WHERE admission_no = ?", (admission_number,))
+            result = cursor.fetchone()
 
-            # Send Email Notification
-            sender_email = "richardkeith233@gmail.com"
-            sender_password = "mnoj wsox aumw tkrs"  # Use an App Password if 2FA is enabled
-            recipient_email = email
+            if result:
+                email, name, last_name = result  # Unpacking the tuple
 
-            subject = "Crimsons Student Portal"
-            body = f"Hello {name},\n\nWe regret to inform you that your password has been updated by the Administration panel. Please confirm with the administration."
+                # Send email notification about password change
+                sender_email = "richardkeith233@gmail.com"
+                sender_password = "mnoj wsox aumw tkrs"  # Use an App Password if 2FA is enabled
+                recipient_email = email
 
-            send_mail1.send_email(sender_email, recipient_email, sender_password, last_name, subject, body)
+                subject = "Crimsons Student Portal"
+                body = f"Hello {name},\n\nYour new Password is: {new_password}. Please feel free to change it after logging in.\n\nBest regards,\nCrimsons Schools Portal"
 
+                send_mail1.send_email(sender_email, recipient_email, sender_password, last_name, subject, body)
+
+                
     # Server-side search + pagination support
     q = request.args.get('q', '')
     # pagination params
@@ -1696,7 +1874,7 @@ def show_students():
 
         # fetch paginated matched rows
         cursor.execute('''
-            SELECT students.admission_no, students.first_name, students.last_name, logins.password
+            SELECT students.admission_no, students.first_name, students.last_name, logins.password, COALESCE(logins.is_locked, 0)
             FROM students
             LEFT JOIN logins ON students.admission_no = logins.admission_no
             WHERE students.admission_no LIKE ? OR students.first_name LIKE ? OR students.last_name LIKE ?
@@ -1714,7 +1892,7 @@ def show_students():
 
         # fetch paginated rows
         cursor.execute('''
-            SELECT students.admission_no, students.first_name, students.last_name, logins.password
+            SELECT students.admission_no, students.first_name, students.last_name, logins.password, COALESCE(logins.is_locked, 0)
             FROM students
             LEFT JOIN logins ON students.admission_no = logins.admission_no
             ORDER BY students.rowid DESC
@@ -1723,14 +1901,100 @@ def show_students():
 
     students = cursor.fetchall()
     # normalize missing passwords to empty string for display
-    students = [(s[0], s[1], s[2], s[3] if s[3] is not None else '') for s in students]
+    students = [(s[0], s[1], s[2], s[3] if s[3] is not None else '', s[4] if s[4] is not None else 0) for s in students]
     conn.close()
 
     # compute pagination metadata
     total_pages = max(1, (total + per_page - 1) // per_page)
 
     # Pass back the query and pagination info so the template can render controls
-    return render_template('students_logins.html', students=students, q=q, page=page, total_pages=total_pages)
+    return render_template('students_logins.html',  students=students, q=q, page=page, total_pages=total_pages,profile_pic=profile_pic)
+
+@app.route('/teachers_logins', methods=['GET', 'POST'])
+def show_teachers():
+    username = session.get('username')
+    profile_pic = database.get_aprofile(username)
+    conn = sqlite3.connect('admin.db')
+    ensure_admin_logins_schema(conn)
+    cursor = conn.cursor()
+
+    if request.method == 'POST':
+        action = request.form.get('action', 'update_password')
+        teacher_username = request.form['teacher_username']
+
+        if action == 'toggle_lock':
+            new_state = int(request.form.get('lock_state', '0'))
+            cursor.execute("SELECT 1 FROM logins WHERE position = ?", (teacher_username,))
+            if cursor.fetchone():
+                cursor.execute("UPDATE logins SET is_locked = ? WHERE position = ?", (new_state, teacher_username))
+            else:
+                cursor.execute("INSERT INTO logins (position, password, is_locked) VALUES (?, ?, ?)",
+                               (teacher_username, "", new_state))
+            conn.commit()
+        else:
+            new_password = request.form['new_password']
+            cursor.execute("SELECT 1 FROM logins WHERE position = ?", (teacher_username,))
+            if cursor.fetchone():
+                cursor.execute("UPDATE logins SET password = ? WHERE position = ?", (new_password, teacher_username))
+            else:
+                cursor.execute("INSERT INTO logins (position, password, is_locked) VALUES (?, ?, 0)",
+                               (teacher_username, new_password))
+            conn.commit()
+
+    q = request.args.get('q', '')
+    try:
+        page = int(request.args.get('page', 1))
+    except (TypeError, ValueError):
+        page = 1
+    if page < 1:
+        page = 1
+    per_page = 20
+    offset = (page - 1) * per_page
+
+    if q:
+        like_q = f"%{q}%"
+        cursor.execute('''
+            SELECT COUNT(*)
+            FROM teachers
+            JOIN admin_data ON admin_data.position = teachers.username
+            LEFT JOIN logins ON logins.position = teachers.username
+            WHERE teachers.username LIKE ? OR admin_data.f_name LIKE ? OR admin_data.l_name LIKE ? OR teachers.email LIKE ?
+        ''', (like_q, like_q, like_q, like_q))
+        total = cursor.fetchone()[0]
+
+        cursor.execute('''
+            SELECT teachers.username, admin_data.f_name, admin_data.l_name, logins.password, COALESCE(logins.is_locked, 0)
+            FROM teachers
+            JOIN admin_data ON admin_data.position = teachers.username
+            LEFT JOIN logins ON logins.position = teachers.username
+            WHERE teachers.username LIKE ? OR admin_data.f_name LIKE ? OR admin_data.l_name LIKE ? OR teachers.email LIKE ?
+            ORDER BY teachers.rowid DESC
+            LIMIT ? OFFSET ?
+        ''', (like_q, like_q, like_q, like_q, per_page, offset))
+    else:
+        cursor.execute('''
+            SELECT COUNT(*)
+            FROM teachers
+            JOIN admin_data ON admin_data.position = teachers.username
+            LEFT JOIN logins ON logins.position = teachers.username
+        ''')
+        total = cursor.fetchone()[0]
+
+        cursor.execute('''
+            SELECT teachers.username, admin_data.f_name, admin_data.l_name, logins.password, COALESCE(logins.is_locked, 0)
+            FROM teachers
+            JOIN admin_data ON admin_data.position = teachers.username
+            LEFT JOIN logins ON logins.position = teachers.username
+            ORDER BY teachers.rowid DESC
+            LIMIT ? OFFSET ?
+        ''', (per_page, offset))
+
+    teachers = cursor.fetchall()
+    teachers = [(t[0], t[1], t[2], t[3] if t[3] is not None else '', t[4] if t[4] is not None else 0) for t in teachers]
+    conn.close()
+
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    return render_template('teachers_logins.html', teachers=teachers, q=q, page=page, total_pages=total_pages, profile_pic=profile_pic)
 #=====================Update fee balances for each student
 # Route to display the HTML form
 @app.route('/fee_update_success')

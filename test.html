@@ -1,0 +1,116 @@
+<form
+  action="https://formspree.io/f/{FORM_ID}"
+  class="fs-form fs-layout__2-column"
+  target="_top"
+  method="POST"
+>
+  <fieldset>
+    <legend class="fs-fieldset-title">Join the Waiting List</legend>
+    <div class="fs-field">
+      <label class="fs-label" for="full-name">Full Name</label>
+      <input
+        class="fs-input"
+        id="full-name"
+        name="full-name"
+        placeholder="Enter your name"
+      />
+    </div>
+    <div class="fs-field">
+      <label class="fs-label" for="email-address">Email Address</label>
+      <input
+        class="fs-input"
+        id="email-address"
+        name="email-address"
+        placeholder="Enter your email address"
+        required
+      />
+    </div>
+    <div class="fs-field">
+      <label class="fs-label" for="phone-number">Phone Number</label>
+      <input
+        class="fs-input"
+        id="phone-number"
+        name="phone-number"
+        placeholder="Enter your phone number (optional)"
+      />
+    </div>
+    <div class="fs-field">
+      <label class="fs-label" for="interest">
+        Product / Service of Interest
+      </label>
+      <input
+        class="fs-input"
+        id="interest"
+        name="interest"
+        placeholder="Enter the product or service name"
+      />
+    </div>
+    <div class="fs-field col-span-full">
+      <label class="fs-label" for="interest-reason">
+        Why Are You Interested?
+      </label>
+      <textarea
+        class="fs-textarea"
+        id="interest-reason"
+        name="interest-reason"
+        placeholder="Tell us why you&#x27;re interested (optional)"
+      ></textarea>
+    </div>
+    <div class="fs-field col-span-full">
+      <label class="fs-label" for="referral-source">
+        How Did You Hear About Us?
+      </label>
+      <input
+        class="fs-input"
+        id="referral-source"
+        name="referral-source"
+        placeholder="Optional"
+      />
+    </div>
+    <div class="fs-checkbox-field col-span-full">
+      <div class="fs-checkbox-wrapper">
+        <input
+          aria-describedby="update-consent-description"
+          class="fs-checkbox"
+          id="update-consent"
+          name="update-consent"
+          required
+          type="checkbox"
+          value="yes"
+        />
+      </div>
+      <div>
+        <label class="fs-label" for="update-consent">
+          Consent to Receive Updates
+        </label>
+        <p class="fs-description" id="update-consent-description">
+          Notify me when spots become available.
+        </p>
+      </div>
+    </div>
+    <div class="fs-checkbox-field col-span-full">
+      <div class="fs-checkbox-wrapper">
+        <input
+          aria-describedby="terms-privacy-description"
+          class="fs-checkbox"
+          id="terms-privacy"
+          name="terms-privacy"
+          required
+          type="checkbox"
+          value="yes"
+        />
+      </div>
+      <div>
+        <label class="fs-label" for="terms-privacy">
+          Agree to Terms &amp; Privacy Policy
+        </label>
+        <p class="fs-description" id="terms-privacy-description">
+          I agree to the Terms &amp; Privacy Policy.
+        </p>
+      </div>
+    </div>
+  </fieldset>
+  <div class="fs-button-group">
+    <button class="fs-button" type="submit">Join Waitlist</button>
+  </div>
+</form>

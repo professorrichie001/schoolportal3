@@ -1,0 +1,122 @@
+{% extends "trainer.html" %}
+{% block content %}
+<link rel="stylesheet" href="static/css/students_logins.css">
+<br><br><br><br><br>
+<div class="container-students">
+    <div class="header-row">
+        <div>
+            <h1 class="page-title">Teacher Login Details</h1>
+            <small class="text-muted">Manage teacher passwords quickly and securely.</small>
+        </div>
+        <div class="search-input">
+            <form method="get" class="d-flex">
+                <input name="q" id="searchInput" value="{{ q|default('') }}" class="form-control" type="search" placeholder="Search (Username, First/Last Name, Email)...">
+                <button class="btn btn-outline-secondary btn-sm ms-2" type="submit">Search</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle">
+            <thead>
+                <tr>
+                    <th scope="col">Username</th>
+                    <th scope="col">First Name</th>
+                    <th scope="col">Last Name</th>
+                    <th scope="col">Password</th>
+                    <th scope="col">Update Password</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Portal Lock</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                {% for teacher in teachers %}
+                <tr>
+                    <td>{{ teacher[0] }}</td>
+                    <td>{{ teacher[1] }}</td>
+                    <td>{{ teacher[2] }}</td>
+                    <td><code>{{ teacher[3] }}</code></td>
+                    <td>
+                        <form action="/teachers_logins" method="post" class="d-flex gap-2 update-form align-items-center">
+                            <input type="hidden" name="teacher_username" value="{{ teacher[0] }}">
+                            <input type="hidden" name="action" value="update_password">
+                            <input type="text" name="new_password" class="form-control form-control-sm" placeholder="New Password" required>
+                            <button class="btn btn-sm btn-primary" type="submit">Update</button>
+                        </form>
+                    </td>
+                    <td>
+                        {% if teacher[4] == 1 %}
+                            <span class="badge bg-danger">Locked</span>
+                        {% else %}
+                            <span class="badge bg-success">Active</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form action="/teachers_logins" method="post" class="d-flex align-items-center">
+                            <input type="hidden" name="teacher_username" value="{{ teacher[0] }}">
+                            <input type="hidden" name="action" value="toggle_lock">
+                            {% if teacher[4] == 1 %}
+                                <input type="hidden" name="lock_state" value="0">
+                                <button class="btn btn-sm btn-outline-success" type="submit">Unlock</button>
+                            {% else %}
+                                <input type="hidden" name="lock_state" value="1">
+                                <button class="btn btn-sm btn-outline-danger" type="submit">Lock</button>
+                            {% endif %}
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+        {% if total_pages and total_pages > 1 %}
+        <nav aria-label="Teachers pagination">
+            <ul class="pagination justify-content-center mt-3">
+                <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('show_teachers', q=q, page=page-1) }}" aria-label="Previous">&laquo; Prev</a>
+                </li>
+
+                {% set start = page-3 if page-3 > 1 else 1 %}
+                {% set end = page+3 if page+3 < total_pages else total_pages %}
+                {% if start > 1 %}
+                    <li class="page-item"><a class="page-link" href="{{ url_for('show_teachers', q=q, page=1) }}">1</a></li>
+                    {% if start > 2 %}
+                        <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+                    {% endif %}
+                {% endif %}
+
+                {% for p in range(start, end+1) %}
+                    <li class="page-item {% if p == page %}active{% endif %}"><a class="page-link" href="{{ url_for('show_teachers', q=q, page=p) }}">{{ p }}</a></li>
+                {% endfor %}
+
+                {% if end < total_pages %}
+                    {% if end < total_pages - 1 %}
+                        <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+                    {% endif %}
+                    <li class="page-item"><a class="page-link" href="{{ url_for('show_teachers', q=q, page=total_pages) }}">{{ total_pages }}</a></li>
+                {% endif %}
+
+                <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('show_teachers', q=q, page=page+1) }}" aria-label="Next">Next &raquo;</a>
+                </li>
+            </ul>
+        </nav>
+        {% endif %}
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const input = document.getElementById('searchInput');
+            const rows = document.querySelectorAll('#tableBody tr');
+            if (!input) return;
+            input.addEventListener('input', function (e) {
+                const q = e.target.value.trim().toLowerCase();
+                rows.forEach(r => {
+                    const txt = r.textContent.toLowerCase();
+                    r.style.display = txt.includes(q) ? '' : 'none';
+                });
+            });
+        });
+    </script>
+
+{% endblock %}

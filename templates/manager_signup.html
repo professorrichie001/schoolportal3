@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manager Sign Up</title>
+    <link rel="stylesheet" href="static/css/manager_signup.css">
+    <link
+      rel="icon"
+      href="static/images/your_uploaded_image.jpg"
+      type="image/x-icon"
+    />
+</head>
+<body>
+    <form action="{{ url_for('manager_signup') }}" class="fs-form fs-layout__2-column" method="POST">
+   
+  <fieldset>
+    <legend class="fs-fieldset-title">Create Manager Account</legend>
+    <div class="fs-field">
+      <label class="fs-label" for="username">Manager Username</label>
+      <input
+        class="fs-input"
+        id="username"
+        name="username"
+        placeholder="Enter your username"
+        required
+      />
+    </div>
+    <div class="fs-field">
+      <label class="fs-label" for="f_name">First Name</label>
+      <input
+        class="fs-input"
+        id="f_name"
+        name="f_name"
+        placeholder="Enter your first name"
+        required
+      />
+    </div>
+    <div class="fs-field">
+      <label class="fs-label" for="m_name">Middle Name</label>
+      <input
+        class="fs-input"
+        id="m_name"
+        name="m_name"
+        placeholder="Enter your middle name"
+      />
+    </div>
+    <div class="fs-field">
+      <label class="fs-label" for="l_name">Last Name</label>
+      <input
+        class="fs-input"
+        id="l_name"
+        name="l_name"
+        placeholder="Enter your last name"
+        required
+      />
+    </div>
+    <div class="fs-field">
+      <label class="fs-label" for="position">Position</label>
+      <input
+        class="fs-input"
+        id="position"
+        name="position"
+        placeholder="Enter your role (e.g., Manager)"
+      />
+    </div>
+    <div class="fs-field">
+      <label class="fs-label" for="email">Email</label>
+      <input
+        class="fs-input"
+        id="email"
+        name="email"
+        placeholder="Enter your email"
+        type="email"
+      />
+    </div>
+    <div class="fs-field">
+      <label class="fs-label" for="phone_number">Phone Number</label>
+      <input
+        class="fs-input"
+        id="phone_number"
+        name="phone_number"
+        placeholder="Enter your phone number"
+        type="tel"
+      />
+    </div>
+    <div class="fs-field">
+      <label class="fs-label" for="password">Password</label>
+      <input
+        class="fs-input"
+        id="password"
+        name="password"
+        placeholder="Enter your password"
+        type="password"
+        required
+      />
+    </div>
+    <div class="fs-field">
+      <label class="fs-label" for="confirm-password">Confirm Password</label>
+      <input
+        class="fs-input"
+        id="confirm-password"
+        name="confirm_password"
+        placeholder="Re-enter your password"
+        type="password"
+        required
+      />
+    </div>
+     <div class="fs-checkbox-field col-span-full">
+      <div class="fs-checkbox-wrapper">
+        <input
+          aria-describedby="terms-privacy-description"
+          class="fs-checkbox"
+          id="terms-privacy"
+          name="terms-privacy"
+          required
+          type="checkbox"
+          value="yes"
+        />
+      </div>
+      <div>
+        <label class="fs-label" for="terms-privacy">
+          Agree to Terms &amp; Privacy Policy
+        </label>
+        <p class="fs-description" id="terms-privacy-description">
+          I agree to the Terms &amp; Privacy Policy.
+        </p>
+      </div>
+    </div>
+  </fieldset>
+  {% if error %}
+  <p class="fs-description col-span-full" style="color:#b42318;">{{ error }}</p>
+  {% endif %}
+  <div class="fs-button-group">
+    <button class="fs-button" type="submit">Create Manager Account</button>
+  </div>
+</form>
+</body>
+</html>

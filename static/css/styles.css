@@ -43,6 +43,13 @@ html,body {
     text-decoration: underline;
 }
 
+.error-message {
+    margin: 12px 0 0;
+    text-align: center;
+    color: #ff6b6b;
+    font-size: 12px;
+}
+
 
 .form-structor {
 	background-color: #222;
@@ -219,6 +226,38 @@ html,body {
 				opacity: 1;
 				visibility: visible;
 				-webkit-transition: all .3s ease;
+
+				.password-field {
+					position: relative;
+				}
+
+				.password-field .input {
+					padding-right: 40px;
+				}
+
+				.toggle-password {
+					position: absolute;
+					right: 8px;
+					top: 50%;
+					transform: translateY(-50%);
+					border: 0;
+					background: transparent;
+					padding: 6px;
+					cursor: pointer;
+					color: #6B92A4;
+				}
+
+				.toggle-password svg {
+					width: 18px;
+					height: 18px;
+					display: block;
+					fill: currentColor;
+				}
+
+				.toggle-password:focus-visible {
+					outline: 2px solid #6B92A4;
+					border-radius: 6px;
+				}
 
 				.input {
 					border: 0;

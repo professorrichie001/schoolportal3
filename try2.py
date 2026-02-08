@@ -1,31 +1,35 @@
-from flask import Flask, render_template, request
 import sqlite3
 
-app = Flask(__name__)
+DB_NAME = "manager.db"
 
-@app.route('/')
-def profile():
-    admission_no = request.args.get('admission_no', '')  # Get admission number from query parameter
+def clear_tables():
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
 
-    conn = sqlite3.connect("fees.db")
-    cursor = conn.cursor()
+        # Delete all records
+        cursor.execute("DELETE FROM logins;")
+        cursor.execute("DELETE FROM manager;")
 
-    cursor.execute("SELECT * FROM payment_history LIMIT 1")
-    student = cursor.fetchone()
+        
+        
+        conn.commit()
+        print("✅ All data cleared from logins and managers tables.")
 
-    if not student:
-        return "No student found in the database."
+    except sqlite3.Error as e:
+        print("❌ Database error:", e)
 
-    cursor.execute("SELECT date_time, amount_paid, remaining_balance FROM payment_history WHERE admission_number = ? ORDER BY date_time", (admission_no,))
-    payments = cursor.fetchall()
+    finally:
+        if conn:
+            conn.close()
 
-    conn.close()
+if __name__ == "__main__":
+    confirm = input(
+        "⚠️ This will permanently delete ALL data from logins and managers tables.\n"
+        "Type YES to continue: "
+    )
 
-    dates = [payment[0] for payment in payments]
-    amounts = [payment[1] for payment in payments]
-    remaining_balance = [payment[2] for payment in payments]
-
-    return render_template('graph2.html', dates=dates, amounts=amounts, remaining_balance=remaining_balance)
-
-if __name__ == '__main__':
-    app.run(debug=True)
+    if confirm == "YES":
+        clear_tables()
+    else:
+        print("❎ Operation cancelled.")

@@ -13,7 +13,8 @@ def add_admin_login():
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS logins(
             position TEXT,
-            password TEXT
+            password TEXT,
+            is_locked INTEGER DEFAULT 0
         )
         ''')
         conn.commit()
@@ -119,6 +120,7 @@ def init_logins():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             admission_no TEXT,
             password TEXT,
+            is_locked INTEGER DEFAULT 0,
             FOREIGN KEY (admission_no) REFERENCES students (admission_no)
         )
         ''')
