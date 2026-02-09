@@ -17,7 +17,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import time
 import graph2
@@ -150,7 +150,7 @@ def login():
             count = cursor.fetchone()[0]
             if count > 0:
                 session['username'] = admission_no
-                return redirect(url_for('add_or_remove_student'))
+                return redirect(url_for('manager_dashboard'))
             else:
                 with sqlite3.connect('admin.db') as conn:
                     ensure_admin_logins_schema(conn)
@@ -1002,6 +1002,431 @@ def trainer():
     username = document_functions.replace_slash_with_dot(username)
     profile_pic = database.get_aprofile(username)
     return render_template('trainer.html',timer=timer,profile_pic=profile_pic)
+
+@app.route('/manager_dashboard')
+def manager_dashboard():
+    username = session.get('username')
+    if not username:
+        return redirect(url_for('login'))
+
+    username = document_functions.replace_slash_with_dot(username)
+    profile_pic = database.get_aprofile(username)
+
+    total_students = 0
+    locked_students = 0
+    non_compliant = 0
+    ill_students = 0
+    attendance_today = 0
+    with sqlite3.connect('student.db') as conn:
+        ensure_student_logins_schema(conn)
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS attendance(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admission_no TEXT,
+                date TEXT,
+                time_in TEXT,
+                status TEXT,
+                marked_by TEXT,
+                time_out TEXT,
+                marked_out_by TEXT,
+                FOREIGN KEY (admission_no) REFERENCES students (admission_no)
+            )
+        ''')
+        cursor.execute('SELECT COUNT(*) FROM students')
+        total_students = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) FROM logins WHERE COALESCE(is_locked, 0) = 1')
+        locked_students = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) FROM non_compliant')
+        non_compliant = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) FROM ill_students')
+        ill_students = cursor.fetchone()[0]
+        today = datetime.now().strftime('%Y-%m-%d')
+        cursor.execute('SELECT COUNT(*) FROM attendance WHERE date = ?', (today,))
+        attendance_today = cursor.fetchone()[0]
+
+    total_teachers = 0
+    locked_teachers = 0
+    with sqlite3.connect('admin.db') as conn:
+        ensure_admin_logins_schema(conn)
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM teachers')
+        total_teachers = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) FROM logins WHERE COALESCE(is_locked, 0) = 1')
+        locked_teachers = cursor.fetchone()[0]
+
+    arrears_count = 0
+    arrears_total = 0
+    recent_payments_count = 0
+    recent_payments_total = 0
+    with sqlite3.connect('fees.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS payment_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admission_number TEXT,
+                amount_paid REAL,
+                remaining_balance REAL,
+                date_time TEXT
+            )
+        ''')
+        cursor.execute('SELECT COUNT(*) FROM students WHERE remaining_balance > 0')
+        arrears_count = cursor.fetchone()[0]
+        cursor.execute('SELECT COALESCE(SUM(remaining_balance), 0) FROM students WHERE remaining_balance > 0')
+        arrears_total = cursor.fetchone()[0]
+        recent_cutoff = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        cursor.execute('SELECT COUNT(*), COALESCE(SUM(amount_paid), 0) FROM payment_history WHERE date_time >= ?', (recent_cutoff,))
+        row = cursor.fetchone()
+        recent_payments_count = row[0]
+        recent_payments_total = row[1]
+
+    return render_template(
+        'manager_dashboard.html',
+        profile_pic=profile_pic,
+        total_students=total_students,
+        total_teachers=total_teachers,
+        arrears_count=arrears_count,
+        arrears_total=arrears_total,
+        non_compliant=non_compliant,
+        ill_students=ill_students,
+        locked_students=locked_students,
+        locked_teachers=locked_teachers,
+        attendance_today=attendance_today,
+        recent_payments_count=recent_payments_count,
+        recent_payments_total=recent_payments_total,
+    )
+
+
+@app.route('/manager_attendance_today_data')
+def manager_attendance_today_data():
+    username = session.get('username')
+    if not username:
+        return jsonify({'success': False, 'message': 'Not authenticated'})
+
+    date = datetime.now().strftime('%Y-%m-%d')
+    with sqlite3.connect('student.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+        SELECT a.admission_no, s.first_name, s.last_name, a.time_in, a.time_out, a.status
+        FROM attendance a
+        JOIN students s ON a.admission_no = s.admission_no
+        WHERE a.date = ?
+        ORDER BY a.time_in DESC
+        LIMIT 10
+        ''', (date,))
+        records = cursor.fetchall()
+
+    rows = [
+        {
+            'admission': record[0],
+            'name': f"{record[1]} {record[2]}",
+            'time_in': record[3],
+            'time_out': record[4],
+            'status': record[5],
+        }
+        for record in records
+    ]
+
+    return jsonify({'success': True, 'rows': rows})
+
+
+@app.route('/manager_recent_payments_data')
+def manager_recent_payments_data():
+    username = session.get('username')
+    if not username:
+        return jsonify({'success': False, 'message': 'Not authenticated'})
+
+    recent_cutoff = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+    with sqlite3.connect('fees.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+        SELECT admission_number, amount_paid, remaining_balance, date_time
+        FROM payment_history
+        WHERE date_time >= ?
+        ORDER BY date_time DESC
+        LIMIT 10
+        ''', (recent_cutoff,))
+        payment_rows = cursor.fetchall()
+
+    name_lookup = {}
+    with sqlite3.connect('student.db') as conn:
+        cursor = conn.cursor()
+        for row in payment_rows:
+            admission_number = row[0]
+            if admission_number in name_lookup:
+                continue
+            cursor.execute('''
+            SELECT first_name, last_name
+            FROM students
+            WHERE admission_no = ?
+            ''', (admission_number,))
+            student = cursor.fetchone()
+            if student:
+                name_lookup[admission_number] = f"{student[0]} {student[1]}"
+            else:
+                name_lookup[admission_number] = 'Unknown'
+
+    rows = [
+        {
+            'admission': row[0],
+            'name': name_lookup.get(row[0], 'Unknown'),
+            'amount': row[1],
+            'remaining': row[2],
+            'date_time': row[3],
+        }
+        for row in payment_rows
+    ]
+
+    return jsonify({'success': True, 'rows': rows})
+
+
+@app.route('/manager_locked_students_data')
+def manager_locked_students_data():
+    username = session.get('username')
+    if not username:
+        return jsonify({'success': False, 'message': 'Not authenticated'})
+
+    with sqlite3.connect('student.db') as conn:
+        ensure_student_logins_schema(conn)
+        cursor = conn.cursor()
+        cursor.execute('''
+        SELECT s.admission_no, s.first_name, s.last_name, l.admission_no, COALESCE(l.is_locked, 0)
+        FROM logins l
+        JOIN students s ON l.admission_no = s.admission_no
+        WHERE COALESCE(l.is_locked, 0) = 1
+        ORDER BY s.last_name, s.first_name
+        LIMIT 10
+        ''')
+        records = cursor.fetchall()
+
+    rows = [
+        {
+            'admission': record[0],
+            'name': f"{record[1]} {record[2]}",
+            'username': record[3],
+            'is_locked': record[4],
+        }
+        for record in records
+    ]
+
+    return jsonify({'success': True, 'rows': rows})
+
+
+@app.route('/manager_locked_teachers_data')
+def manager_locked_teachers_data():
+    username = session.get('username')
+    if not username:
+        return jsonify({'success': False, 'message': 'Not authenticated'})
+
+    with sqlite3.connect('admin.db') as conn:
+        ensure_admin_logins_schema(conn)
+        cursor = conn.cursor()
+        cursor.execute('''
+        SELECT t.username, a.f_name, a.l_name, l.position, COALESCE(l.is_locked, 0)
+        FROM logins l
+        JOIN teachers t ON l.position = t.username
+        JOIN admin_data a ON a.position = t.username
+        WHERE COALESCE(l.is_locked, 0) = 1
+        ORDER BY a.l_name, a.f_name
+        LIMIT 10
+        ''')
+        records = cursor.fetchall()
+
+    rows = [
+        {
+            'teacher_id': record[0],
+            'name': f"{record[1]} {record[2]}",
+            'username': record[3],
+            'is_locked': record[4],
+        }
+        for record in records
+    ]
+
+    return jsonify({'success': True, 'rows': rows})
+
+
+@app.route('/manager_toggle_student_lock', methods=['POST'])
+def manager_toggle_student_lock():
+    username = session.get('username')
+    if not username:
+        return jsonify({'success': False, 'message': 'Not authenticated'})
+
+    data = request.get_json() or {}
+    admission_no = data.get('admission_no', '').strip()
+    lock_state = int(data.get('lock_state', 0))
+
+    if not admission_no:
+        return jsonify({'success': False, 'message': 'Admission number required'})
+
+    with sqlite3.connect('student.db') as conn:
+        ensure_student_logins_schema(conn)
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM logins WHERE admission_no = ?", (admission_no,))
+        if cursor.fetchone():
+            cursor.execute("UPDATE logins SET is_locked = ? WHERE admission_no = ?", (lock_state, admission_no))
+        else:
+            cursor.execute("INSERT INTO logins (admission_no, password, is_locked) VALUES (?, ?, ?)",
+                           (admission_no, "", lock_state))
+        conn.commit()
+
+    return jsonify({'success': True, 'lock_state': lock_state})
+
+
+@app.route('/manager_toggle_teacher_lock', methods=['POST'])
+def manager_toggle_teacher_lock():
+    username = session.get('username')
+    if not username:
+        return jsonify({'success': False, 'message': 'Not authenticated'})
+
+    data = request.get_json() or {}
+    teacher_username = data.get('teacher_username', '').strip()
+    lock_state = int(data.get('lock_state', 0))
+
+    if not teacher_username:
+        return jsonify({'success': False, 'message': 'Teacher username required'})
+
+    with sqlite3.connect('admin.db') as conn:
+        ensure_admin_logins_schema(conn)
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM logins WHERE position = ?", (teacher_username,))
+        if cursor.fetchone():
+            cursor.execute("UPDATE logins SET is_locked = ? WHERE position = ?", (lock_state, teacher_username))
+        else:
+            cursor.execute("INSERT INTO logins (position, password, is_locked) VALUES (?, ?, ?)",
+                           (teacher_username, "", lock_state))
+        conn.commit()
+
+    return jsonify({'success': True, 'lock_state': lock_state})
+
+
+@app.route('/manager_payments_trend_data')
+def manager_payments_trend_data():
+    username = session.get('username')
+    if not username:
+        return jsonify({'success': False, 'message': 'Not authenticated'})
+
+    end_date = datetime.now().date()
+    start_date = end_date - timedelta(days=29)
+    labels = [(start_date + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(30)]
+    totals = {label: 0 for label in labels}
+
+    with sqlite3.connect('fees.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS payment_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admission_number TEXT,
+                amount_paid REAL,
+                remaining_balance REAL,
+                date_time TEXT
+            )
+        ''')
+        cursor.execute('''
+        SELECT substr(date_time, 1, 10) AS day, COALESCE(SUM(amount_paid), 0)
+        FROM payment_history
+        WHERE day >= ?
+        GROUP BY day
+        ORDER BY day
+        ''', (start_date.strftime('%Y-%m-%d'),))
+        for day, total in cursor.fetchall():
+            if day in totals:
+                totals[day] = total
+
+    data = [totals[label] for label in labels]
+    return jsonify({'success': True, 'labels': labels, 'data': data})
+
+
+@app.route('/manager_attendance_trend_data')
+def manager_attendance_trend_data():
+    username = session.get('username')
+    if not username:
+        return jsonify({'success': False, 'message': 'Not authenticated'})
+
+    end_date = datetime.now().date()
+    start_date = end_date - timedelta(days=6)
+    labels = [(start_date + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(7)]
+    totals = {label: 0 for label in labels}
+
+    with sqlite3.connect('student.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS attendance(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admission_no TEXT,
+                date TEXT,
+                time_in TEXT,
+                status TEXT,
+                marked_by TEXT,
+                time_out TEXT,
+                marked_out_by TEXT,
+                FOREIGN KEY (admission_no) REFERENCES students (admission_no)
+            )
+        ''')
+        cursor.execute('''
+        SELECT date, COUNT(*)
+        FROM attendance
+        WHERE date >= ?
+        GROUP BY date
+        ORDER BY date
+        ''', (start_date.strftime('%Y-%m-%d'),))
+        for day, count in cursor.fetchall():
+            if day in totals:
+                totals[day] = count
+
+    data = [totals[label] for label in labels]
+    return jsonify({'success': True, 'labels': labels, 'data': data})
+
+
+@app.route('/manager_student_lock_breakdown_data')
+def manager_student_lock_breakdown_data():
+    username = session.get('username')
+    if not username:
+        return jsonify({'success': False, 'message': 'Not authenticated'})
+
+    locked_students = 0
+    total_students = 0
+
+    with sqlite3.connect('student.db') as conn:
+        ensure_student_logins_schema(conn)
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM students')
+        total_students = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) FROM logins WHERE COALESCE(is_locked, 0) = 1')
+        locked_students = cursor.fetchone()[0]
+
+    unlocked_students = max(0, total_students - locked_students)
+
+    return jsonify({
+        'success': True,
+        'labels': ['Locked Students', 'Unlocked Students'],
+        'data': [locked_students, unlocked_students]
+    })
+
+
+@app.route('/manager_teacher_lock_breakdown_data')
+def manager_teacher_lock_breakdown_data():
+    username = session.get('username')
+    if not username:
+        return jsonify({'success': False, 'message': 'Not authenticated'})
+
+    locked_teachers = 0
+    total_teachers = 0
+
+    with sqlite3.connect('admin.db') as conn:
+        ensure_admin_logins_schema(conn)
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM teachers')
+        total_teachers = cursor.fetchone()[0]
+        cursor.execute('SELECT COUNT(*) FROM logins WHERE COALESCE(is_locked, 0) = 1')
+        locked_teachers = cursor.fetchone()[0]
+
+    unlocked_teachers = max(0, total_teachers - locked_teachers)
+
+    return jsonify({
+        'success': True,
+        'labels': ['Locked Teachers', 'Unlocked Teachers'],
+        'data': [locked_teachers, unlocked_teachers]
+    })
 
 @app.route('/download/<filename>')
 def download(filename):

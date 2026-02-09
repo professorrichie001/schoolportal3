@@ -1,0 +1,686 @@
+{% extends "trainer.html" %}
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+      <h2 class="fw-bold mb-1">Manager Dashboard</h2>
+      <p class="text-muted mb-0">Quick overview of school activity and access control.</p>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Total Students</p>
+          <h3 class="mb-0">{{ total_students }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Total Teachers</p>
+          <h3 class="mb-0">{{ total_teachers }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Fee Arrears (Count)</p>
+          <h3 class="mb-0">{{ arrears_count }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Fee Arrears (Total)</p>
+          <h3 class="mb-0">Sh. {{ "{:,.0f}".format(arrears_total) }}</h3>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mt-1">
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card shadow-sm h-100 border-start border-4 border-danger">
+        <div class="card-body">
+          <p class="text-muted mb-1">Locked Students</p>
+          <h3 class="mb-0">{{ locked_students }}</h3>
+          <button class="btn btn-sm btn-outline-danger mt-3" type="button" id="openLockedStudentsPopup">View</button>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card shadow-sm h-100 border-start border-4 border-warning">
+        <div class="card-body">
+          <p class="text-muted mb-1">Locked Teachers</p>
+          <h3 class="mb-0">{{ locked_teachers }}</h3>
+          <button class="btn btn-sm btn-outline-warning mt-3" type="button" id="openLockedTeachersPopup">View</button>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card shadow-sm h-100 border-start border-4 border-info">
+        <div class="card-body">
+          <p class="text-muted mb-1">Non-Compliant Students</p>
+          <h3 class="mb-0">{{ non_compliant }}</h3>
+          <a class="btn btn-sm btn-outline-info mt-3" href="{{ url_for('non_compliant_students') }}">View</a>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card shadow-sm h-100 border-start border-4 border-primary">
+        <div class="card-body">
+          <p class="text-muted mb-1">Health Issues</p>
+          <h3 class="mb-0">{{ ill_students }}</h3>
+          <a class="btn btn-sm btn-outline-primary mt-3" href="{{ url_for('health_issue') }}">View</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mt-1">
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card shadow-sm h-100 border-start border-4 border-success">
+        <div class="card-body">
+          <p class="text-muted mb-1">Attendance Today</p>
+          <h3 class="mb-0">{{ attendance_today }}</h3>
+          <button class="btn btn-sm btn-outline-success mt-3" type="button" id="openAttendancePopup">View</button>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="card shadow-sm h-100 border-start border-4 border-secondary">
+        <div class="card-body">
+          <p class="text-muted mb-1">Recent Payments (7 days)</p>
+          <h3 class="mb-0">Sh. {{ "{:,.0f}".format(recent_payments_total) }}</h3>
+          <div class="text-muted small">Count: {{ recent_payments_count }}</div>
+          <button class="btn btn-sm btn-outline-secondary mt-3" type="button" id="openPaymentsPopup">View</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4 mt-4">
+    <div class="col-12 col-xl-7">
+      <div class="card shadow-sm h-100 manager-chart-card">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <div>
+              <p class="text-muted mb-1">Payments Trend</p>
+              <h5 class="mb-0">Last 30 Days</h5>
+            </div>
+          </div>
+          <div class="manager-chart-wrap">
+            <canvas id="paymentsTrendChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-5">
+      <div class="card shadow-sm h-100 manager-chart-card">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <div>
+              <p class="text-muted mb-1">Attendance Trend</p>
+              <h5 class="mb-0">Last 7 Days</h5>
+            </div>
+          </div>
+          <div class="manager-chart-wrap">
+            <canvas id="attendanceTrendChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4 mt-1">
+    <div class="col-12 col-xl-4">
+      <div class="card shadow-sm h-100 manager-chart-card">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <div>
+              <p class="text-muted mb-1">Students</p>
+              <h5 class="mb-0">Lock Breakdown</h5>
+            </div>
+          </div>
+          <div class="manager-chart-wrap">
+            <canvas id="studentLockChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-4">
+      <div class="card shadow-sm h-100 manager-chart-card">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <div>
+              <p class="text-muted mb-1">Teachers</p>
+              <h5 class="mb-0">Lock Breakdown</h5>
+            </div>
+          </div>
+          <div class="manager-chart-wrap">
+            <canvas id="teacherLockChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="manager-popup-overlay" id="attendancePopup">
+  <div class="manager-popup-card">
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <h5 class="mb-0">Attendance Today</h5>
+      <button class="btn btn-sm btn-outline-secondary" type="button" data-close-popup>Close</button>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr>
+            <th>Admission</th>
+            <th>Name</th>
+            <th>Time In</th>
+            <th>Time Out</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="attendancePopupBody">
+          <tr>
+            <td colspan="5" class="text-muted">Loading...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="manager-popup-overlay" id="paymentsPopup">
+  <div class="manager-popup-card">
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <h5 class="mb-0">Recent Payments (7 days)</h5>
+      <button class="btn btn-sm btn-outline-secondary" type="button" data-close-popup>Close</button>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr>
+            <th>Admission</th>
+            <th>Name</th>
+            <th>Amount</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody id="paymentsPopupBody">
+          <tr>
+            <td colspan="4" class="text-muted">Loading...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="manager-popup-overlay" id="lockedStudentsPopup">
+  <div class="manager-popup-card">
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <h5 class="mb-0">Locked Students</h5>
+      <button class="btn btn-sm btn-outline-secondary" type="button" data-close-popup>Close</button>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr>
+            <th>Admission</th>
+            <th>Name</th>
+            <th>Username</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="lockedStudentsPopupBody">
+          <tr>
+            <td colspan="4" class="text-muted">Loading...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="manager-popup-overlay" id="lockedTeachersPopup">
+  <div class="manager-popup-card">
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <h5 class="mb-0">Locked Teachers</h5>
+      <button class="btn btn-sm btn-outline-secondary" type="button" data-close-popup>Close</button>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr>
+            <th>Teacher ID</th>
+            <th>Name</th>
+            <th>Username</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="lockedTeachersPopupBody">
+          <tr>
+            <td colspan="4" class="text-muted">Loading...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<style>
+  .manager-popup-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.35);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    z-index: 1050;
+  }
+
+  .manager-popup-overlay.is-open {
+    display: flex;
+  }
+
+  .manager-popup-card {
+    width: min(720px, 92vw);
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.25);
+    padding: 16px 18px;
+  }
+
+  .manager-chart-card h5 {
+    font-weight: 600;
+    color: #0f172a;
+  }
+
+  .manager-chart-wrap {
+    position: relative;
+    width: 100%;
+    min-height: 240px;
+  }
+
+  .manager-chart-wrap canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+</style>
+
+<script>
+  (function () {
+    const attendancePopup = document.getElementById('attendancePopup');
+    const paymentsPopup = document.getElementById('paymentsPopup');
+    const lockedStudentsPopup = document.getElementById('lockedStudentsPopup');
+    const lockedTeachersPopup = document.getElementById('lockedTeachersPopup');
+    const attendanceBody = document.getElementById('attendancePopupBody');
+    const paymentsBody = document.getElementById('paymentsPopupBody');
+    const lockedStudentsBody = document.getElementById('lockedStudentsPopupBody');
+    const lockedTeachersBody = document.getElementById('lockedTeachersPopupBody');
+
+    const closePopups = () => {
+      attendancePopup.classList.remove('is-open');
+      paymentsPopup.classList.remove('is-open');
+      lockedStudentsPopup.classList.remove('is-open');
+      lockedTeachersPopup.classList.remove('is-open');
+    };
+
+    const renderAttendanceRows = (rows) => {
+      if (!rows.length) {
+        attendanceBody.innerHTML = '<tr><td colspan="5" class="text-muted">No attendance marked today.</td></tr>';
+        return;
+      }
+      attendanceBody.innerHTML = rows.map(row => `
+        <tr>
+          <td>${row.admission}</td>
+          <td>${row.name}</td>
+          <td>${row.time_in || '-'}</td>
+          <td>${row.time_out || '-'}</td>
+          <td>${row.status || '-'}</td>
+        </tr>
+      `).join('');
+    };
+
+    const renderPaymentRows = (rows) => {
+      if (!rows.length) {
+        paymentsBody.innerHTML = '<tr><td colspan="4" class="text-muted">No recent payments.</td></tr>';
+        return;
+      }
+      paymentsBody.innerHTML = rows.map(row => `
+        <tr>
+          <td>${row.admission}</td>
+          <td>${row.name}</td>
+          <td>Sh. ${Number(row.amount).toLocaleString()}</td>
+          <td>${row.date_time}</td>
+        </tr>
+      `).join('');
+    };
+
+    const renderLockedStudentsRows = (rows) => {
+      if (!rows.length) {
+        lockedStudentsBody.innerHTML = '<tr><td colspan="4" class="text-muted">No locked students.</td></tr>';
+        return;
+      }
+      lockedStudentsBody.innerHTML = rows.map(row => `
+        <tr>
+          <td>${row.admission}</td>
+          <td>${row.name}</td>
+          <td>${row.username}</td>
+          <td>
+            <div class="btn-group btn-group-sm" role="group">
+              <button class="btn btn-outline-danger" data-student-lock data-admission="${row.admission}" data-state="1" ${row.is_locked ? 'disabled' : ''}>Lock</button>
+              <button class="btn btn-outline-success" data-student-lock data-admission="${row.admission}" data-state="0" ${row.is_locked ? '' : 'disabled'}>Unlock</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    };
+
+    const renderLockedTeachersRows = (rows) => {
+      if (!rows.length) {
+        lockedTeachersBody.innerHTML = '<tr><td colspan="4" class="text-muted">No locked teachers.</td></tr>';
+        return;
+      }
+      lockedTeachersBody.innerHTML = rows.map(row => `
+        <tr>
+          <td>${row.teacher_id}</td>
+          <td>${row.name}</td>
+          <td>${row.username}</td>
+          <td>
+            <div class="btn-group btn-group-sm" role="group">
+              <button class="btn btn-outline-danger" data-teacher-lock data-username="${row.teacher_id}" data-state="1" ${row.is_locked ? 'disabled' : ''}>Lock</button>
+              <button class="btn btn-outline-success" data-teacher-lock data-username="${row.teacher_id}" data-state="0" ${row.is_locked ? '' : 'disabled'}>Unlock</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    };
+
+    const loadLockedStudents = async () => {
+      lockedStudentsBody.innerHTML = '<tr><td colspan="4" class="text-muted">Loading...</td></tr>';
+      try {
+        const response = await fetch('{{ url_for("manager_locked_students_data") }}');
+        const data = await response.json();
+        renderLockedStudentsRows(data.success ? data.rows : []);
+      } catch (error) {
+        lockedStudentsBody.innerHTML = '<tr><td colspan="4" class="text-muted">Failed to load data.</td></tr>';
+      }
+    };
+
+    const loadLockedTeachers = async () => {
+      lockedTeachersBody.innerHTML = '<tr><td colspan="4" class="text-muted">Loading...</td></tr>';
+      try {
+        const response = await fetch('{{ url_for("manager_locked_teachers_data") }}');
+        const data = await response.json();
+        renderLockedTeachersRows(data.success ? data.rows : []);
+      } catch (error) {
+        lockedTeachersBody.innerHTML = '<tr><td colspan="4" class="text-muted">Failed to load data.</td></tr>';
+      }
+    };
+
+    document.getElementById('openAttendancePopup').addEventListener('click', async () => {
+      attendancePopup.classList.add('is-open');
+      attendanceBody.innerHTML = '<tr><td colspan="5" class="text-muted">Loading...</td></tr>';
+      try {
+        const response = await fetch('{{ url_for("manager_attendance_today_data") }}');
+        const data = await response.json();
+        renderAttendanceRows(data.success ? data.rows : []);
+      } catch (error) {
+        attendanceBody.innerHTML = '<tr><td colspan="5" class="text-muted">Failed to load data.</td></tr>';
+      }
+    });
+
+    document.getElementById('openPaymentsPopup').addEventListener('click', async () => {
+      paymentsPopup.classList.add('is-open');
+      paymentsBody.innerHTML = '<tr><td colspan="4" class="text-muted">Loading...</td></tr>';
+      try {
+        const response = await fetch('{{ url_for("manager_recent_payments_data") }}');
+        const data = await response.json();
+        renderPaymentRows(data.success ? data.rows : []);
+      } catch (error) {
+        paymentsBody.innerHTML = '<tr><td colspan="4" class="text-muted">Failed to load data.</td></tr>';
+      }
+    });
+
+    document.getElementById('openLockedStudentsPopup').addEventListener('click', async () => {
+      lockedStudentsPopup.classList.add('is-open');
+      await loadLockedStudents();
+    });
+
+    document.getElementById('openLockedTeachersPopup').addEventListener('click', async () => {
+      lockedTeachersPopup.classList.add('is-open');
+      await loadLockedTeachers();
+    });
+
+    lockedStudentsBody.addEventListener('click', async (event) => {
+      const button = event.target.closest('[data-student-lock]');
+      if (!button) {
+        return;
+      }
+      const admissionNo = button.getAttribute('data-admission');
+      const state = Number(button.getAttribute('data-state'));
+      try {
+        await fetch('{{ url_for("manager_toggle_student_lock") }}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ admission_no: admissionNo, lock_state: state })
+        });
+        await loadLockedStudents();
+      } catch (error) {
+        // ignore network errors and leave table as-is
+      }
+    });
+
+    lockedTeachersBody.addEventListener('click', async (event) => {
+      const button = event.target.closest('[data-teacher-lock]');
+      if (!button) {
+        return;
+      }
+      const teacherUsername = button.getAttribute('data-username');
+      const state = Number(button.getAttribute('data-state'));
+      try {
+        await fetch('{{ url_for("manager_toggle_teacher_lock") }}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ teacher_username: teacherUsername, lock_state: state })
+        });
+        await loadLockedTeachers();
+      } catch (error) {
+        // ignore network errors and leave table as-is
+      }
+    });
+
+    document.querySelectorAll('[data-close-popup]').forEach((button) => {
+      button.addEventListener('click', closePopups);
+    });
+
+    [attendancePopup, paymentsPopup, lockedStudentsPopup, lockedTeachersPopup].forEach((popup) => {
+      popup.addEventListener('click', (event) => {
+        if (event.target === popup) {
+          closePopups();
+        }
+      });
+    });
+  })();
+</script>
+
+<script>
+  (function () {
+    const shortLabel = (label) => label.slice(5);
+
+    const initPaymentsTrend = async () => {
+      try {
+        const response = await fetch('{{ url_for("manager_payments_trend_data") }}');
+        const data = await response.json();
+        if (!data.success) {
+          return;
+        }
+        const ctx = document.getElementById('paymentsTrendChart');
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: data.labels.map(shortLabel),
+            datasets: [{
+              label: 'Payments',
+              data: data.data,
+              borderColor: '#0f172a',
+              backgroundColor: 'rgba(15, 23, 42, 0.08)',
+              fill: true,
+              tension: 0.35,
+              pointRadius: 2,
+              pointBackgroundColor: '#0f172a'
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              x: {
+                grid: { display: false },
+                ticks: { color: '#5b6776', maxTicksLimit: 8 }
+              },
+              y: {
+                grid: { color: 'rgba(148, 163, 184, 0.3)' },
+                ticks: { color: '#5b6776' }
+              }
+            }
+          }
+        });
+      } catch (error) {
+        // ignore chart errors
+      }
+    };
+
+    const initAttendanceTrend = async () => {
+      try {
+        const response = await fetch('{{ url_for("manager_attendance_trend_data") }}');
+        const data = await response.json();
+        if (!data.success) {
+          return;
+        }
+        const ctx = document.getElementById('attendanceTrendChart');
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: data.labels.map(shortLabel),
+            datasets: [{
+              label: 'Attendance',
+              data: data.data,
+              backgroundColor: 'rgba(37, 99, 235, 0.35)',
+              borderColor: 'rgba(37, 99, 235, 0.9)',
+              borderWidth: 1,
+              borderRadius: 6,
+              maxBarThickness: 32
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              x: { grid: { display: false }, ticks: { color: '#5b6776' } },
+              y: { grid: { color: 'rgba(148, 163, 184, 0.3)' }, ticks: { color: '#5b6776', precision: 0 } }
+            }
+          }
+        });
+      } catch (error) {
+        // ignore chart errors
+      }
+    };
+
+    const initStudentLockBreakdown = async () => {
+      try {
+        const response = await fetch('{{ url_for("manager_student_lock_breakdown_data") }}');
+        const data = await response.json();
+        if (!data.success) {
+          return;
+        }
+        const ctx = document.getElementById('studentLockChart');
+        new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: data.labels,
+            datasets: [{
+              data: data.data,
+              backgroundColor: ['rgba(220, 38, 38, 0.7)', 'rgba(16, 185, 129, 0.7)'],
+              borderColor: ['rgba(220, 38, 38, 0.9)', 'rgba(16, 185, 129, 0.9)'],
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'bottom', labels: { color: '#5b6776' } }
+            },
+            cutout: '65%'
+          }
+        });
+      } catch (error) {
+        // ignore chart errors
+      }
+    };
+
+    const initTeacherLockBreakdown = async () => {
+      try {
+        const response = await fetch('{{ url_for("manager_teacher_lock_breakdown_data") }}');
+        const data = await response.json();
+        if (!data.success) {
+          return;
+        }
+        const ctx = document.getElementById('teacherLockChart');
+        new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: data.labels,
+            datasets: [{
+              data: data.data,
+              backgroundColor: ['rgba(234, 88, 12, 0.7)', 'rgba(37, 99, 235, 0.7)'],
+              borderColor: ['rgba(234, 88, 12, 0.9)', 'rgba(37, 99, 235, 0.9)'],
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'bottom', labels: { color: '#5b6776' } }
+            },
+            cutout: '65%'
+          }
+        });
+      } catch (error) {
+        // ignore chart errors
+      }
+    };
+
+    const bootCharts = () => {
+      if (typeof Chart === 'undefined') {
+        setTimeout(bootCharts, 150);
+        return;
+      }
+      initPaymentsTrend();
+      initAttendanceTrend();
+      initStudentLockBreakdown();
+      initTeacherLockBreakdown();
+    };
+
+    window.addEventListener('load', bootCharts);
+  })();
+</script>
+{% endblock %}

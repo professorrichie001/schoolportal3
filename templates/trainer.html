@@ -78,9 +78,16 @@
           <div class="sidebar-content">
             <ul class="nav nav-secondary">
               <li class="nav-item active">
+                <a href="{{ url_for('manager_dashboard')}}">
+                  <i class="fas fa-chart-line"></i>
+                  <p>Manager Dashboard</p>
+
+                </a>
+              </li>
+              <li class="nav-item ">
                 <a
                   data-bs-toggle="collapse"
-                  href="#dashboard"
+                  href="#registered"
                   class="collapsed"
                   aria-expanded="false"
                 >
@@ -88,9 +95,10 @@
                   <p>Registered Persons</p>
                   <span class="caret"></span>
                 </a>
-                <div class="collapse" id="dashboard">
+                <div class="collapse" id="registered">
                   <ul class="nav nav-collapse">
                     <li>
+                      
                       <a href="{{ url_for('registered1') }}">
                         <span class="sub-item">Registered Teachers</span>
                       </a>
@@ -236,7 +244,7 @@
               </li>
               <li class="nav-item">
                 <a href="{{ url_for('msetting')}}">
-                  <i class="fas fa-cog"></i>
+                  <i class="fas fa-chart-line"></i>
 
                   <p>Update profile</p>
 
@@ -294,7 +302,7 @@
               <div class="payment-banner text-center w-100">
   <span>
     Payments are chanelled only to till number:
-    <strong>8381507.  </strong>
+    <strong>6536463.  </strong>
     For any querries, contact support at:
     <strong>0758 27 65 00</strong>
   </span>
@@ -804,4 +812,3 @@
 
   </body>
 </html>
-
