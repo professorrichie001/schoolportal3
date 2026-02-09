@@ -852,6 +852,28 @@ def remove_student_subjects(admission_no):
 
         # Commit the transaction to make sure the deletion is saved
         conn.commit()
+def clear_fees(admission_no):
+    try:
+        conn = sqlite3.connect('fees.db')
+        cursor = conn.cursor()
+
+        # Delete all records
+        cursor.execute("DELETE FROM fees WHERE admission_no = ?;", (admission_no,))
+        cursor.execute("DELETE FROM payment_history WHERE admission_no = ?;", (admission_no,))
+        cursor.execute("DELETE FROM students WHERE admission_no = ?;", (admission_no,))
+        
+        
+
+        conn.commit()
+        print("✅ All data cleared from fees tables.")
+
+    except sqlite3.Error as e:
+        print("❌ Database error:", e)
+
+    finally:
+        if conn:
+            conn.close()
+
 def remove_student_subjects(admission_no):
     """
     Removes a student login record from the 'logins' table in the database
@@ -943,6 +965,7 @@ def delete_student(admission_no):
     remove_student_assignment(admission_no)
     remove_student_fee(admission_no)
     remove_student_rest(admission_no)
+    clear_fees(admission_no)
     
 
 
