@@ -16,6 +16,7 @@
     {% endwith %}
 
     <form method="POST" action="{{ url_for('teacher_virtual_classes') }}">
+      <input type="hidden" id="timezone_offset" name="timezone_offset" value="">
       <div class="row g-3">
         <div class="col-md-6">
           <label for="title" class="form-label">Class Title</label>
@@ -111,6 +112,7 @@
     const mode = document.getElementById('meeting_mode');
     const wrap = document.getElementById('meetingLinkWrap');
     const input = document.getElementById('meeting_link');
+    const tzOffset = document.getElementById('timezone_offset');
 
     function syncMeetingLinkField() {
       const needsCustomLink = mode.value === 'external_custom';
@@ -121,6 +123,7 @@
 
     mode.addEventListener('change', syncMeetingLinkField);
     syncMeetingLinkField();
+    tzOffset.value = String(new Date().getTimezoneOffset());
   })();
 </script>
 {% endblock %}

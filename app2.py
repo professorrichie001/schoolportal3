@@ -727,6 +727,8 @@ def ensure_virtual_classes_schema():
             cursor.execute("ALTER TABLE virtual_classes ADD COLUMN room_code TEXT")
         if "created_at" not in cols:
             cursor.execute("ALTER TABLE virtual_classes ADD COLUMN created_at DATETIME")
+        if "scheduled_at_utc" not in cols:
+            cursor.execute("ALTER TABLE virtual_classes ADD COLUMN scheduled_at_utc TEXT")
         conn.commit()
 
 
@@ -740,12 +742,17 @@ def parse_scheduled_at(value):
     if not value:
         return None
     raw = str(value).strip()
-    for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+    for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
         try:
             return datetime.strptime(raw, fmt)
         except ValueError:
             continue
     return None
+
+
+def local_to_utc(local_dt, tz_offset_minutes):
+    # JS getTimezoneOffset() gives UTC-local in minutes.
+    return local_dt + timedelta(minutes=tz_offset_minutes)
 
 
 def class_matches(target_class, class_id):
@@ -831,6 +838,7 @@ def teacher_virtual_classes():
         meeting_mode = request.form.get('meeting_mode', 'built_in').strip()
         meeting_link = request.form.get('meeting_link', '').strip()
         scheduled_at = request.form.get('scheduled_at', '').strip()
+        timezone_offset = request.form.get('timezone_offset', '').strip()
         notes = request.form.get('notes', '').strip()
 
         if not title or not target_class:
@@ -843,6 +851,18 @@ def teacher_virtual_classes():
 
         room_code = None
         is_internal = 0
+        scheduled_at_utc = None
+
+        if scheduled_at:
+            local_schedule = parse_scheduled_at(scheduled_at)
+            if not local_schedule:
+                flash('Invalid scheduled date/time format.')
+                return redirect(url_for('teacher_virtual_classes'))
+            try:
+                tz_offset_minutes = int(timezone_offset) if timezone_offset else 0
+            except ValueError:
+                tz_offset_minutes = 0
+            scheduled_at_utc = local_to_utc(local_schedule, tz_offset_minutes).strftime("%Y-%m-%d %H:%M:%S")
 
         if meeting_mode == 'external_random':
             meeting_link = f"https://meet.jit.si/schoolportal-{uuid.uuid4().hex[:12]}"
@@ -862,13 +882,14 @@ def teacher_virtual_classes():
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO virtual_classes
-                (title, target_class, meeting_link, scheduled_at, notes, created_by, is_internal, room_code)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (title, target_class, meeting_link, scheduled_at, scheduled_at_utc, notes, created_by, is_internal, room_code)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 title,
                 target_class,
                 meeting_link,
                 scheduled_at if scheduled_at else None,
+                scheduled_at_utc,
                 notes if notes else None,
                 teacher_id,
                 is_internal,
@@ -993,7 +1014,7 @@ def join_virtual_class(class_id):
     with sqlite3.connect('admin.db') as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT id, title, target_class, meeting_link, scheduled_at, created_by
+            SELECT id, title, target_class, meeting_link, scheduled_at, scheduled_at_utc, created_by
             FROM virtual_classes
             WHERE id = ?
         ''', (class_id,))
@@ -1008,6 +1029,7 @@ def join_virtual_class(class_id):
     target_class = row[2]
     meeting_link = row[3]
     scheduled_at = row[4]
+    scheduled_at_utc = row[5]
 
     if admission_no:
         class_id_for_student = student_class_id(admission_no)
@@ -1015,9 +1037,10 @@ def join_virtual_class(class_id):
             flash('You are not authorized for this virtual class.')
             return redirect(url_for('student_virtual_classes'))
 
-    open_time = parse_scheduled_at(scheduled_at)
-    if open_time and datetime.now() < open_time:
-        flash(f'Room opens at {open_time.strftime("%Y-%m-%d %H:%M")}.')
+    open_time_utc = parse_scheduled_at(scheduled_at_utc)
+    if open_time_utc and datetime.utcnow() < open_time_utc:
+        display_time = scheduled_at if scheduled_at else f"{open_time_utc.strftime('%Y-%m-%d %H:%M')} UTC"
+        flash(f'Room opens at {display_time}.')
         if admission_no:
             return redirect(url_for('student_virtual_classes'))
         return redirect(url_for('teacher_virtual_classes'))
@@ -1036,7 +1059,7 @@ def video_room(room_code):
     with sqlite3.connect('admin.db') as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT title, target_class, scheduled_at FROM virtual_classes WHERE room_code = ?",
+            "SELECT title, target_class, scheduled_at, scheduled_at_utc FROM virtual_classes WHERE room_code = ?",
             (room_code,)
         )
         row = cursor.fetchone()
@@ -1044,10 +1067,12 @@ def video_room(room_code):
     room_title = row[0] if row else "Virtual Class Room"
     target_class = row[1] if row else None
     scheduled_at = row[2] if row else None
+    scheduled_at_utc = row[3] if row else None
 
-    open_time = parse_scheduled_at(scheduled_at)
-    if open_time and datetime.now() < open_time:
-        flash(f'Room opens at {open_time.strftime("%Y-%m-%d %H:%M")}.')
+    open_time_utc = parse_scheduled_at(scheduled_at_utc)
+    if open_time_utc and datetime.utcnow() < open_time_utc:
+        display_time = scheduled_at if scheduled_at else f"{open_time_utc.strftime('%Y-%m-%d %H:%M')} UTC"
+        flash(f'Room opens at {display_time}.')
         if admission_no:
             return redirect(url_for('student_virtual_classes'))
         return redirect(url_for('teacher_virtual_classes'))
